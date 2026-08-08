@@ -286,6 +286,40 @@ function renderTransactions() {
   const budget = getCurrentBudget();
   const list = document.getElementById('transactionsList');
   const empty = document.getElementById('emptyTransactions');
+  const chartEl = document.getElementById('categoryChart');
+  const chartCard = document.getElementById('categoryChartCard');
+
+  // Build category totals (expenses only)
+  const totals = {};
+  let grandTotal = 0;
+  budget.transactions.forEach(t => {
+    if (t.type !== 'expense') return;
+    const name = findLineName(t.lineItemId) || t.originalCategory || 'Uncategorized';
+    totals[name] = (totals[name] || 0) + Number(t.amount);
+    grandTotal += Number(t.amount);
+  });
+
+  const sortedCats = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+
+  if (sortedCats.length === 0) {
+    chartCard.style.display = 'none';
+  } else {
+    chartCard.style.display = 'block';
+    chartEl.innerHTML = sortedCats.map(([name, amount]) => {
+      const pct = grandTotal > 0 ? (amount / grandTotal) * 100 : 0;
+      return `
+        <div class="cat-row">
+          <div class="cat-row-top">
+            <span class="cat-name">${escapeHtml(name)}</span>
+            <span class="cat-amount">${formatMoney(amount)}</span>
+          </div>
+          <div class="cat-bar-track">
+            <div class="cat-bar-fill" style="width:${pct}%"></div>
+          </div>
+          <div class="cat-pct">${pct.toFixed(0)}%</div>
+        </div>`;
+    }).join('');
+  }
 
   if (!budget.transactions.length) {
     list.innerHTML = '';
@@ -584,15 +618,53 @@ document.getElementById('csvFileInput').addEventListener('change', async (e) => 
       return;
     }
 
-    const budget = getCurrentBudget();
     let imported = 0;
     let skippedPayments = 0;
+    const monthsTouched = new Set();
+
+    // Helper: find or create a line item in a specific month's budget
+    function findOrCreateLineItem(budget, catName) {
+      if (!catName) return null;
+
+      const normalized = catName
+        .replace(/Health Care/i, 'Healthcare')
+        .replace(/Phone\/Cable/i, 'Phone');
+
+      // Try to find existing
+      for (const g of budget.groups) {
+        const match = g.items.find(item =>
+          item.name.toLowerCase() === normalized.toLowerCase() ||
+          item.name.toLowerCase().includes(normalized.toLowerCase()) ||
+          normalized.toLowerCase().includes(item.name.toLowerCase())
+        );
+        if (match) return match.id;
+      }
+
+      // Create new
+      const groupName = CAP1_MAP[catName] || CAP1_MAP[normalized] || 'Other';
+      let group = budget.groups.find(g => g.name === groupName);
+      if (!group) {
+        group = { name: groupName, items: [] };
+        budget.groups.push(group);
+      }
+      const newItem = { id: uid(), name: normalized || catName, planned: 0, spent: 0 };
+      group.items.push(newItem);
+      return newItem.id;
+    }
 
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       if (!row || row.length < 2) continue;
 
       const dateStr = row[dateIdx];
+      const normalizedDate = normalizeDate(dateStr);
+      if (!normalizedDate) continue;
+
+      // Put the transaction in the month it actually belongs to
+      const monthKey = normalizedDate.slice(0, 7); // "YYYY-MM"
+      const budget = ensureMonth(monthKey);
+      monthsTouched.add(monthKey);
+
       const desc = (descIdx >= 0 ? row[descIdx] : '').trim();
       const catName = (catIdx >= 0 ? (row[catIdx] || '').trim() : '');
       let amount = 0;
@@ -607,8 +679,8 @@ document.getElementById('csvFileInput').addEventListener('change', async (e) => 
       } else if (creditVal) {
         amount = parseFloat(creditVal.replace(/[,$]/g, '')) || 0;
         // Skip large card payments / autopay so they don't look like income
-        const isPayment = /autopay|payment|paymt|pymt/i.test(desc) || 
-                          /payment\/credit/i.test(catName) && amount > 200;
+        const isPayment = /autopay|payment|paymt|pymt/i.test(desc) ||
+                          (/payment\/credit/i.test(catName) && amount > 200);
         if (isPayment) {
           skippedPayments++;
           continue;
@@ -618,43 +690,12 @@ document.getElementById('csvFileInput').addEventListener('change', async (e) => 
 
       if (amount <= 0) continue;
 
-      // Try to match or create a line item from Capital One category
-      let lineItemId = null;
-      if (catName) {
-        // Normalize common variations
-        const normalized = catName.replace(/Health Care/i, 'Healthcare')
-                                  .replace(/Phone\/Cable/i, 'Phone');
-        
-        for (const g of budget.groups) {
-          const match = g.items.find(item => 
-            item.name.toLowerCase() === normalized.toLowerCase() ||
-            item.name.toLowerCase().includes(normalized.toLowerCase()) ||
-            normalized.toLowerCase().includes(item.name.toLowerCase())
-          );
-          if (match) {
-            lineItemId = match.id;
-            break;
-          }
-        }
-
-        // If no match, create a new line item under a sensible group
-        if (!lineItemId) {
-          const groupName = CAP1_MAP[catName] || CAP1_MAP[normalized] || 'Other';
-          let group = budget.groups.find(g => g.name === groupName);
-          if (!group) {
-            group = { name: groupName, items: [] };
-            budget.groups.push(group);
-          }
-          const newItem = { id: uid(), name: normalized || catName, planned: 0, spent: 0 };
-          group.items.push(newItem);
-          lineItemId = newItem.id;
-        }
-      }
+      const lineItemId = findOrCreateLineItem(budget, catName);
 
       budget.transactions.push({
         id: uid(),
         amount,
-        date: normalizeDate(dateStr),
+        date: normalizedDate,
         description: desc,
         type,
         lineItemId,
@@ -664,13 +705,17 @@ document.getElementById('csvFileInput').addEventListener('change', async (e) => 
       imported++;
     }
 
-    recalcSpent(budget);
+    // Recalculate spent for every month that received transactions
+    monthsTouched.forEach(m => {
+      recalcSpent(state.budgets[m]);
+    });
+
     saveState();
     render();
-    
-    let msg = `Imported ${imported} transactions`;
+
+    let msg = `Imported ${imported} transactions across ${monthsTouched.size} month${monthsTouched.size === 1 ? '' : 's'}`;
     if (skippedPayments > 0) msg += ` (skipped ${skippedPayments} payments)`;
-    toast(msg);
+    toast(msg, 3500);
   } catch (err) {
     console.error(err);
     toast('Failed to parse CSV');

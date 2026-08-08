@@ -549,3 +549,44 @@ body {
     border-right: 1px solid var(--border);
   }
 }
+/* Category spending chart */
+.cat-row {
+  margin-bottom: 12px;
+}
+.cat-row:last-child {
+  margin-bottom: 0;
+}
+.cat-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.cat-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+}
+.cat-amount {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.cat-bar-track {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.cat-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0ea5e9, #0284c7);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.cat-pct {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  text-align: right;
+}
