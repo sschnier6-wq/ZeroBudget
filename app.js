@@ -294,7 +294,7 @@ function renderTransactions() {
   let grandTotal = 0;
   budget.transactions.forEach(t => {
     if (t.type !== 'expense') return;
-    const name = findLineName(t.lineItemId) || t.originalCategory || 'Uncategorized';
+    const name = findLineName(t.lineItemId, budget) || t.originalCategory || 'Uncategorized';
     totals[name] = (totals[name] || 0) + Number(t.amount);
     grandTotal += Number(t.amount);
   });
@@ -333,7 +333,7 @@ function renderTransactions() {
 
   list.innerHTML = sorted.map(t => {
     const isIncome = t.type === 'income';
-    const lineName = findLineName(t.lineItemId) || (isIncome ? 'Income' : 'Uncategorized');
+    const lineName = findLineName(t.lineItemId, budget) || (isIncome ? 'Income' : 'Uncategorized');
     return `
       <div class="line-item" style="margin-bottom:8px;">
         <div class="line-item-top">
@@ -366,12 +366,20 @@ function renderFunds() {
   `).join('');
 }
 
-function findLineName(id) {
+function findLineName(id, budget) {
   if (!id) return null;
-  const budget = getCurrentBudget();
-  for (const g of budget.groups) {
+  const b = budget || getCurrentBudget();
+  for (const g of b.groups) {
     const item = g.items.find(i => i.id === id);
     if (item) return item.name;
+  }
+  // Fallback: search all months (in case IDs were created elsewhere)
+  for (const mk of Object.keys(state.budgets)) {
+    const bb = state.budgets[mk];
+    for (const g of bb.groups) {
+      const item = g.items.find(i => i.id === id);
+      if (item) return item.name;
+    }
   }
   return null;
 }
@@ -710,6 +718,12 @@ document.getElementById('csvFileInput').addEventListener('change', async (e) => 
       recalcSpent(state.budgets[m]);
     });
 
+    // Switch view to the most recent month that received data
+    if (monthsTouched.size > 0) {
+      const sortedMonths = [...monthsTouched].sort().reverse();
+      state.currentMonth = sortedMonths[0];
+    }
+
     saveState();
     render();
 
@@ -748,12 +762,24 @@ function parseCSV(text) {
 }
 
 function normalizeDate(str) {
-  // Try to turn various formats into YYYY-MM-DD
-  const d = new Date(str);
-  if (!isNaN(d.getTime())) {
-    return d.toISOString().slice(0, 10);
+  if (!str) return null;
+  const s = String(str).trim();
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  // MM/DD/YYYY
+  const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (mdy) {
+    return `${mdy[3]}-${mdy[1].padStart(2, '0')}-${mdy[2].padStart(2, '0')}`;
   }
-  return str;
+  // Fallback — parse as local date parts to avoid UTC shift
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  return null;
 }
 
 // ========== IMPORT CATEGORY TOTALS (Spend Analyzer style) ==========
