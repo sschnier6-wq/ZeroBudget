@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="ZeroBudget" />
+  <meta name="theme-color" content="#0ea5e9" />
+  <meta name="description" content="Simple zero-based budgeting. Give every dollar a job." />
+  
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png" />
+  
+  <title>ZeroBudget</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Install banner (shown when not installed) -->
+    <div id="installBanner" class="install-banner" style="display: none;">
+      <span>Install ZeroBudget on your home screen</span>
+      <button id="installBtn">Install</button>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+      <h1>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 7v5l3 2"/>
+        </svg>
+        ZeroBudget
+      </h1>
+      <div class="month-selector">
+        <button id="prevMonth" aria-label="Previous month">‹</button>
+        <span id="currentMonthLabel">August 2026</span>
+        <button id="nextMonth" aria-label="Next month">›</button>
+      </div>
+    </header>
+
+    <!-- Main content area -->
+    <main class="main">
+      <!-- BUDGET SCREEN -->
+      <div id="screen-budget" class="screen active">
+        <div class="summary" id="summaryBar">
+          <div class="summary-item income">
+            <div class="label">Income</div>
+            <div class="value" id="sumIncome">$0</div>
+          </div>
+          <div class="summary-item planned">
+            <div class="label">Planned</div>
+            <div class="value" id="sumPlanned">$0</div>
+          </div>
+          <div class="summary-item remaining">
+            <div class="label">Left to Budget</div>
+            <div class="value" id="sumRemaining">$0</div>
+          </div>
+        </div>
+
+        <div id="budgetList">
+          <!-- Categories and line items rendered here -->
+        </div>
+
+        <div class="empty-state" id="emptyBudget" style="display: none;">
+          <p>No budget yet for this month.</p>
+          <button class="btn btn-primary mt-4" id="startBudgetBtn">Start This Month’s Budget</button>
+        </div>
+      </div>
+
+      <!-- TRANSACTIONS SCREEN -->
+      <div id="screen-transactions" class="screen">
+        <div class="card">
+          <div class="card-title">Recent Transactions</div>
+          <div id="transactionsList"></div>
+          <div class="empty-state" id="emptyTransactions" style="display: none;">
+            <p>No transactions yet.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- FUNDS / GOALS SCREEN -->
+      <div id="screen-funds" class="screen">
+        <div class="card">
+          <div class="card-title">Sinking Funds</div>
+          <div id="fundsList"></div>
+          <button class="btn btn-secondary btn-block mt-4" id="addFundBtn">+ Add Fund</button>
+        </div>
+      </div>
+
+      <!-- MORE / TOOLS SCREEN -->
+      <div id="screen-more" class="screen">
+        <div class="card">
+          <div class="card-title">Import Data</div>
+          <p class="text-muted mb-2" style="font-size: 0.9rem;">Import transactions from Capital One or category totals from Spend Analyzer.</p>
+          <button class="btn btn-primary btn-block mb-2" id="importCsvBtn">Import Capital One CSV</button>
+          <button class="btn btn-secondary btn-block mb-2" id="importCategoriesBtn">Import Category Totals</button>
+          <button class="btn btn-ghost btn-block" id="showImportHelpBtn">How to get Capital One data ▾</button>
+          <div id="importHelpPanel" style="display:none; margin-top:12px;">
+            <div class="import-help">
+              <strong>How to download your Capital One CSV</strong><br><br>
+              1. Open <strong>capitalone.com</strong> on a <strong>desktop computer</strong> (mobile app cannot export CSV).<br><br>
+              2. Sign in and click your credit card (or bank account).<br><br>
+              3. Go to <strong>Activity</strong> or <strong>Transactions</strong>.<br><br>
+              4. Click <strong>Download Transactions</strong> (or the download icon).<br><br>
+              5. Choose a date range (max ~90 days at a time) and select <strong>CSV</strong>.<br><br>
+              6. Download the file, then come back here and tap “Import Capital One CSV”.<br><br>
+              <em>Tip:</em> Large “AUTOPAY” payments are ignored so they don’t inflate your income. Refunds and rewards are imported as income.
+            </div>
+          </div>
+          <input type="file" id="csvFileInput" accept=".csv,text/csv" style="display: none;" />
+        </div>
+
+        <div class="card mt-4">
+          <div class="card-title">Budget Tools</div>
+          <button class="btn btn-secondary btn-block mb-2" id="copyPrevBtn">Copy Previous Month</button>
+          <button class="btn btn-secondary btn-block mb-2" id="resetMonthBtn">Reset This Month</button>
+          <button class="btn btn-ghost btn-block" id="exportBtn">Export Data (CSV)</button>
+        </div>
+
+        <div class="card mt-4">
+          <div class="card-title">About</div>
+          <p style="font-size: 0.9rem; color: var(--text-muted);">
+            ZeroBudget is a simple zero-based budgeting tool. 
+            Give every dollar a job before the month begins.<br><br>
+            Data stays on your device. No account required.
+          </p>
+        </div>
+      </div>
+    </main>
+
+    <!-- Floating Action Button (Add Transaction) -->
+    <button class="fab" id="fabAdd" aria-label="Add transaction">+</button>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+      <button class="nav-item active" data-screen="budget">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Budget
+      </button>
+      <button class="nav-item" data-screen="transactions">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Activity
+      </button>
+      <button class="nav-item" data-screen="funds">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg>
+        Funds
+      </button>
+      <button class="nav-item" data-screen="more">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+        More
+      </button>
+    </nav>
+  </div>
+
+  <!-- MODALS -->
+  <!-- Add / Edit Transaction -->
+  <div class="modal-overlay" id="modalTransaction">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTxnTitle">Add Transaction</h2>
+        <button class="modal-close" data-close>×</button>
+      </div>
+      <form id="formTransaction">
+        <div class="form-group">
+          <label>Amount</label>
+          <input type="number" id="txnAmount" step="0.01" min="0" placeholder="0.00" required inputmode="decimal" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="txnDate" required />
+          </div>
+          <div class="form-group">
+            <label>Type</label>
+            <select id="txnType">
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Description / Merchant</label>
+          <input type="text" id="txnDesc" placeholder="e.g. Whole Foods" />
+        </div>
+        <div class="form-group" id="txnCategoryGroup">
+          <label>Category / Line Item</label>
+          <select id="txnCategory" required></select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block mt-4">Save Transaction</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Start / Edit Budget -->
+  <div class="modal-overlay" id="modalBudget">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Set Up Budget</h2>
+        <button class="modal-close" data-close>×</button>
+      </div>
+      <div id="budgetSetupContent">
+        <!-- Dynamic content for income + categories -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Line Item / Category -->
+  <div class="modal-overlay" id="modalLineItem">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalLineTitle">Add Line Item</h2>
+        <button class="modal-close" data-close>×</button>
+      </div>
+      <form id="formLineItem">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="lineName" placeholder="e.g. Groceries" required />
+        </div>
+        <div class="form-group">
+          <label>Category Group</label>
+          <select id="lineGroup">
+            <option value="Housing">Housing</option>
+            <option value="Transportation">Transportation</option>
+            <option value="Food">Food</option>
+            <option value="Personal">Personal</option>
+            <option value="Lifestyle">Lifestyle</option>
+            <option value="Health">Health</option>
+            <option value="Insurance">Insurance</option>
+            <option value="Debt">Debt</option>
+            <option value="Savings">Savings</option>
+            <option value="Giving">Giving</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Planned Amount</label>
+          <input type="number" id="linePlanned" step="0.01" min="0" placeholder="0.00" inputmode="decimal" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block mt-4">Save</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Import Category Totals (from Spend Analyzer) -->
+  <div class="modal-overlay" id="modalImportCategories">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Import Category Totals</h2>
+        <button class="modal-close" data-close>×</button>
+      </div>
+      <div class="import-help">
+        <strong>From Capital One Spend Analyzer:</strong><br>
+        Enter the category names and dollar amounts you see (e.g. Merchandise, Dining, etc.). 
+        This helps set realistic planned amounts based on your past spending.
+      </div>
+      <div id="importCategoryRows"></div>
+      <button class="btn btn-secondary btn-sm mt-2" id="addImportRow">+ Add Row</button>
+      <button class="btn btn-primary btn-block mt-4" id="applyImportCategories">Apply to Current Budget</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+  <script>
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW registration failed', err));
+      });
+    }
+  </script>
+</body>
+</html>
