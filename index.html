@@ -50,6 +50,10 @@
             <div class="label">Income</div>
             <div class="value" id="sumIncome">$0</div>
           </div>
+          <div class="summary-item spent">
+            <div class="label">Spent</div>
+            <div class="value" id="sumSpent">$0</div>
+          </div>
           <div class="summary-item planned">
             <div class="label">Planned</div>
             <div class="value" id="sumPlanned">$0</div>
@@ -62,6 +66,15 @@
 
         <div id="budgetList">
           <!-- Categories and line items rendered here -->
+        </div>
+
+        <div id="carryForwardBanner" class="card" style="display:none; margin-bottom:16px;">
+          <div class="card-title">Start from last month?</div>
+          <p class="text-muted" style="font-size:0.9rem; margin-bottom:12px;">
+            Copy planned amounts from the previous month. Items will be tagged <strong>Update</strong> until you confirm them.
+          </p>
+          <button class="btn btn-primary btn-block mb-2" id="carryForwardBtn">Copy previous month’s budget</button>
+          <button class="btn btn-ghost btn-block" id="dismissCarryBtn">Start blank</button>
         </div>
 
         <div class="empty-state" id="emptyBudget" style="display: none;">
@@ -226,6 +239,8 @@
         <div class="form-group">
           <label>Category Group</label>
           <select id="lineGroup">
+            <option value="Savings">Savings</option>
+            <option value="Giving">Giving</option>
             <option value="Housing">Housing</option>
             <option value="Transportation">Transportation</option>
             <option value="Food">Food</option>
@@ -234,8 +249,6 @@
             <option value="Health">Health</option>
             <option value="Insurance">Insurance</option>
             <option value="Debt">Debt</option>
-            <option value="Savings">Savings</option>
-            <option value="Giving">Giving</option>
             <option value="Other">Other</option>
           </select>
         </div>

@@ -7,6 +7,14 @@ const STORAGE_KEY = 'zerobudget_data_v1';
 
 // Default category groups and starter line items
 const DEFAULT_GROUPS = [
+  { name: 'Savings', items: [
+    { name: 'Emergency Fund', planned: 0 },
+    { name: 'Investments', planned: 0 },
+    { name: 'Retirement', planned: 0 }
+  ]},
+  { name: 'Giving', items: [
+    { name: 'Charity/Tithe', planned: 0 }
+  ]},
   { name: 'Housing', items: [
     { name: 'Mortgage/Rent', planned: 0 },
     { name: 'Utilities', planned: 0 },
@@ -34,12 +42,6 @@ const DEFAULT_GROUPS = [
   ]},
   { name: 'Debt', items: [
     { name: 'Credit Cards', planned: 0 }
-  ]},
-  { name: 'Savings', items: [
-    { name: 'Emergency Fund', planned: 0 }
-  ]},
-  { name: 'Giving', items: [
-    { name: 'Charity/Tithe', planned: 0 }
   ]}
 ];
 
@@ -197,7 +199,15 @@ function renderSummary() {
   const s = calcSummary(budget);
 
   document.getElementById('sumIncome').textContent = formatMoney(s.totalIncome);
+  document.getElementById('sumSpent').textContent = formatMoney(s.totalSpent);
   document.getElementById('sumPlanned').textContent = formatMoney(s.totalPlanned);
+
+  const spentEl = document.getElementById('sumSpent');
+  const spentParent = spentEl.closest('.summary-item');
+  spentParent.classList.remove('over');
+  if (s.totalPlanned > 0 && s.totalSpent > s.totalPlanned) {
+    spentParent.classList.add('over');
+  }
 
   const remEl = document.getElementById('sumRemaining');
   remEl.textContent = formatMoney(s.leftToBudget);
@@ -207,22 +217,88 @@ function renderSummary() {
   else if (s.leftToBudget < 0) parent.classList.add('negative');
 }
 
+function getPreviousMonthKey(monthKey) {
+  const [y, m] = monthKey.split('-').map(Number);
+  return getMonthKey(new Date(y, m - 2, 1));
+}
+
+function previousMonthHasPlan(monthKey) {
+  const prev = getPreviousMonthKey(monthKey);
+  const pb = state.budgets[prev];
+  if (!pb) return false;
+  return pb.groups.some(g => g.items.some(i => (i.planned || 0) > 0)) ||
+         pb.income.some(i => (i.planned || 0) > 0);
+}
+
+function copyPreviousMonthPlan({ markForReview = true } = {}) {
+  const prev = getPreviousMonthKey(state.currentMonth);
+  if (!state.budgets[prev]) {
+    toast('No previous month found');
+    return false;
+  }
+  const prevBudget = state.budgets[prev];
+  const current = getCurrentBudget();
+  const existingTx = current.transactions || [];
+
+  current.income = JSON.parse(JSON.stringify(prevBudget.income)).map(i => ({
+    ...i,
+    received: 0,
+    needsReview: markForReview
+  }));
+  current.groups = JSON.parse(JSON.stringify(prevBudget.groups)).map(g => ({
+    ...g,
+    items: g.items.map(i => ({
+      ...i,
+      id: uid(), // fresh ids for this month
+      spent: 0,
+      needsReview: markForReview
+    }))
+  }));
+  current.transactions = existingTx;
+  recalcSpent(current);
+  saveState();
+  return true;
+}
+
 function renderBudgetList() {
   const budget = getCurrentBudget();
   const container = document.getElementById('budgetList');
   const empty = document.getElementById('emptyBudget');
+  const carryBanner = document.getElementById('carryForwardBanner');
 
   const hasAnyPlanned = budget.groups.some(g => g.items.some(i => i.planned > 0)) ||
                         budget.income.some(i => i.planned > 0);
+  const canCarry = !hasAnyPlanned && !budget.dismissedCarry && previousMonthHasPlan(state.currentMonth);
 
-  if (!hasAnyPlanned && budget.transactions.length === 0) {
+  if (carryBanner) {
+    carryBanner.style.display = canCarry ? 'block' : 'none';
+  }
+
+  if (!hasAnyPlanned && budget.transactions.length === 0 && !canCarry) {
     container.innerHTML = '';
     empty.style.display = 'block';
     return;
   }
   empty.style.display = 'none';
 
+  if (!hasAnyPlanned && budget.transactions.length === 0 && canCarry) {
+    container.innerHTML = '';
+    return;
+  }
+
   let html = '';
+
+  const needsReviewCount = budget.groups.reduce((n, g) =>
+    n + g.items.filter(i => i.needsReview).length, 0);
+
+  if (needsReviewCount > 0) {
+    html += `<div class="card" style="margin-bottom:16px; border:1px solid #fbbf24; background:#fffbeb;">
+      <div style="font-size:0.9rem; margin-bottom:10px;">
+        <strong>${needsReviewCount}</strong> item${needsReviewCount === 1 ? '' : 's'} carried from last month — review amounts or confirm.
+      </div>
+      <button class="btn btn-secondary btn-block" onclick="confirmAllReviews()">Mark all as confirmed</button>
+    </div>`;
+  }
 
   // Income section
   html += `<div class="category-group">
@@ -231,18 +307,25 @@ function renderBudgetList() {
       <button class="btn btn-sm btn-ghost" onclick="editIncome()">Edit</button>
     </div>`;
   budget.income.forEach(inc => {
+    const badge = inc.needsReview ? '<span class="badge-update">Update</span>' : '';
     html += `
       <div class="line-item">
         <div class="line-item-top">
-          <span class="line-item-name">${escapeHtml(inc.name)}</span>
+          <span class="line-item-name">${escapeHtml(inc.name)} ${badge}</span>
           <span class="amount-planned">${formatMoney(inc.planned)}</span>
         </div>
       </div>`;
   });
   html += `</div>`;
 
-  // Expense groups
-  budget.groups.forEach(group => {
+  // Expense groups — Savings / Investing first
+  const orderedGroups = [...budget.groups].sort((a, b) => {
+    const ao = GROUP_ORDER[a.name] ?? 50;
+    const bo = GROUP_ORDER[b.name] ?? 50;
+    return ao - bo;
+  });
+
+  orderedGroups.forEach(group => {
     if (group.items.length === 0) return;
     html += `<div class="category-group">
       <div class="category-header">
@@ -254,11 +337,12 @@ function renderBudgetList() {
       const remaining = (item.planned || 0) - (item.spent || 0);
       const pct = item.planned > 0 ? Math.min(100, (item.spent / item.planned) * 100) : 0;
       const remClass = remaining > 0.01 ? 'positive' : remaining < -0.01 ? 'negative' : 'zero';
+      const badge = item.needsReview ? '<span class="badge-update">Update</span>' : '';
 
       html += `
         <div class="line-item" onclick="editLineItem('${item.id}')">
           <div class="line-item-top">
-            <span class="line-item-name">${escapeHtml(item.name)}</span>
+            <span class="line-item-name">${escapeHtml(item.name)} ${badge}</span>
             <div class="line-item-amounts">
               <span class="amount-spent">${formatMoney(item.spent || 0)}</span>
               <span class="text-muted">/</span>
@@ -281,6 +365,15 @@ function renderBudgetList() {
 
   container.innerHTML = html;
 }
+
+window.confirmAllReviews = function() {
+  const budget = getCurrentBudget();
+  budget.income.forEach(i => { i.needsReview = false; });
+  budget.groups.forEach(g => g.items.forEach(i => { i.needsReview = false; }));
+  saveState();
+  render();
+  toast('All items confirmed');
+};
 
 function renderTransactions() {
   const budget = getCurrentBudget();
@@ -544,6 +637,7 @@ function editLineItem(id) {
   const val = parseFloat(newPlanned);
   if (!isNaN(val) && val >= 0) {
     item.planned = val;
+    item.needsReview = false; // confirmed by editing
     saveState();
     render();
   }
@@ -560,6 +654,7 @@ function editIncome() {
       budget.income.push({ id: uid(), name: 'Primary Income', planned: num, received: 0 });
     } else {
       budget.income[0].planned = num;
+      budget.income[0].needsReview = false;
     }
     saveState();
     render();
@@ -856,24 +951,27 @@ document.getElementById('applyImportCategories').addEventListener('click', () =>
 
 // ========== OTHER TOOLS ==========
 document.getElementById('copyPrevBtn').addEventListener('click', () => {
-  const [y, m] = state.currentMonth.split('-').map(Number);
-  const prev = getMonthKey(new Date(y, m - 2, 1));
-  if (!state.budgets[prev]) {
-    toast('No previous month found');
-    return;
+  if (copyPreviousMonthPlan({ markForReview: true })) {
+    render();
+    toast('Copied previous month’s plan — review Update tags');
   }
-  const prevBudget = state.budgets[prev];
-  const current = getCurrentBudget();
-  // Copy structure and planned amounts
-  current.income = JSON.parse(JSON.stringify(prevBudget.income));
-  current.groups = JSON.parse(JSON.stringify(prevBudget.groups)).map(g => ({
-    ...g,
-    items: g.items.map(i => ({ ...i, spent: 0 }))
-  }));
-  // Keep existing transactions
+});
+
+document.getElementById('carryForwardBtn')?.addEventListener('click', () => {
+  if (copyPreviousMonthPlan({ markForReview: true })) {
+    render();
+    toast('Budget carried forward — review Update tags');
+  }
+});
+
+document.getElementById('dismissCarryBtn')?.addEventListener('click', () => {
+  const banner = document.getElementById('carryForwardBanner');
+  if (banner) banner.style.display = 'none';
+  // Mark that user dismissed so we don't keep pushing — just hide for this render
+  const budget = getCurrentBudget();
+  budget.dismissedCarry = true;
   saveState();
   render();
-  toast('Copied previous month’s plan');
 });
 
 document.getElementById('resetMonthBtn').addEventListener('click', () => {

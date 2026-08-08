@@ -127,7 +127,7 @@ body {
 /* Summary bar */
 .summary {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-bottom: 16px;
 }
@@ -154,6 +154,8 @@ body {
 }
 
 .summary-item.income .value { color: var(--success); }
+.summary-item.spent .value { color: var(--text); }
+.summary-item.spent.over .value { color: var(--danger); }
 .summary-item.planned .value { color: var(--primary); }
 .summary-item.remaining .value { color: var(--warning); }
 .summary-item.remaining.zero .value { color: var(--success); }
@@ -589,4 +591,20 @@ body {
   color: var(--text-muted);
   margin-top: 2px;
   text-align: right;
+}
+
+/* Carry-forward Update badge */
+.badge-update {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fbbf24;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  vertical-align: middle;
 }
