@@ -648,3 +648,12 @@ body {
   font-weight: 600;
   color: var(--text);
 }
+
+.app-version {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-left: 6px;
+  vertical-align: middle;
+  opacity: 0.8;
+}

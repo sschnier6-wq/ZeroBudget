@@ -16,7 +16,7 @@ const DEFAULT_GROUPS = [
     { name: 'Charity/Tithe', planned: 0 }
   ]},
   { name: 'Housing', items: [
-    { name: 'Mortgage/Rent', planned: 0 },
+    { name: 'Rent', planned: 0 },
     { name: 'Utilities', planned: 0 },
     { name: 'Internet', planned: 0 }
   ]},
@@ -134,6 +134,28 @@ function loadState() {
   } catch (e) {
     console.error('Failed to load state', e);
   }
+
+  // Remove duplicate Mortgage/Rent if Rent exists; otherwise rename Mortgage/Rent -> Rent
+  Object.values(state.budgets || {}).forEach(budget => {
+    (budget.groups || []).forEach(g => {
+      if (g.name !== 'Housing') return;
+      const rent = g.items.find(i => i.name === 'Rent');
+      const mortgage = g.items.find(i => i.name === 'Mortgage/Rent' || i.name === 'Mortgage');
+      if (mortgage && rent) {
+        // Move planned/spent onto Rent if Rent is empty, then drop Mortgage/Rent
+        if (!(rent.planned > 0) && mortgage.planned > 0) rent.planned = mortgage.planned;
+        if (!(rent.spent > 0) && mortgage.spent > 0) rent.spent = (rent.spent || 0) + (mortgage.spent || 0);
+        // Re-point transactions from mortgage id to rent id
+        (budget.transactions || []).forEach(t => {
+          if (t.lineItemId === mortgage.id) t.lineItemId = rent.id;
+        });
+        g.items = g.items.filter(i => i.id !== mortgage.id);
+      } else if (mortgage && !rent) {
+        mortgage.name = 'Rent';
+      }
+    });
+  });
+
   // Ensure current month exists
   ensureMonth(state.currentMonth);
 }
