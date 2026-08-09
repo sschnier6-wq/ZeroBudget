@@ -32,7 +32,7 @@
           <circle cx="12" cy="12" r="9"/>
           <path d="M12 7v5l3 2"/>
         </svg>
-        ZeroBudget <span class="app-version">v0.11</span>
+        ZeroBudget <span class="app-version">v0.13</span>
       </h1>
       <div class="month-selector">
         <button id="prevMonth" aria-label="Previous month">‹</button>
@@ -107,6 +107,8 @@
           <p class="text-muted mb-2" style="font-size: 0.9rem;">Import transactions from Capital One or category totals from Spend Analyzer.</p>
           <button class="btn btn-primary btn-block mb-2" id="importCsvBtn">Import Capital One CSV</button>
           <button class="btn btn-secondary btn-block mb-2" id="importCategoriesBtn">Import Category Totals</button>
+          <button class="btn btn-danger btn-block mb-2" id="clearUploadsBtn">Clear all previous uploads</button>
+          <p class="text-muted" style="font-size:0.8rem;margin-top:-4px;margin-bottom:12px;">Removes imported transactions from every month so you can re-load a full CSV cleanly. Planned budget amounts are kept.</p>
           <button class="btn btn-ghost btn-block" id="showImportHelpBtn">How to get Capital One data ▾</button>
           <div id="importHelpPanel" style="display:none; margin-top:12px;">
             <div class="import-help">

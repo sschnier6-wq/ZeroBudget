@@ -822,6 +822,40 @@ document.getElementById('importCsvBtn').addEventListener('click', () => {
   document.getElementById('csvFileInput').click();
 });
 
+document.getElementById('clearUploadsBtn')?.addEventListener('click', () => {
+  if (!confirm('Clear all imported transactions from every month?\n\nPlanned budget amounts will be kept. You can then re-import a full CSV without duplicates.')) return;
+
+  let cleared = 0;
+  Object.keys(state.budgets || {}).forEach(mk => {
+    const b = state.budgets[mk];
+    const before = (b.transactions || []).length;
+    // Remove imported rows; also remove uncategorized bulk imports that were tagged imported
+    b.transactions = (b.transactions || []).filter(t => {
+      if (t.imported) { cleared++; return false; }
+      return true;
+    });
+    // If user wants a full clean slate of uploads, also drop remaining if all were imports
+    recalcSpent(b);
+  });
+
+  // If nothing was tagged imported (older data), offer full transaction clear
+  if (cleared === 0) {
+    const total = Object.values(state.budgets).reduce((n, b) => n + (b.transactions || []).length, 0);
+    if (total > 0 && confirm(`No rows were marked as imports. Clear ALL ${total} transactions instead?`)) {
+      Object.values(state.budgets).forEach(b => {
+        cleared += (b.transactions || []).length;
+        b.transactions = [];
+        recalcSpent(b);
+      });
+    }
+  }
+
+  saveState();
+  render();
+  toast(cleared ? `Cleared ${cleared} uploaded transaction${cleared === 1 ? '' : 's'}` : 'Nothing to clear');
+});
+
+
 // Toggle help panel
 document.getElementById('showImportHelpBtn')?.addEventListener('click', () => {
   const panel = document.getElementById('importHelpPanel');
@@ -862,7 +896,24 @@ document.getElementById('csvFileInput').addEventListener('change', async (e) => 
 
     let imported = 0;
     let skippedPayments = 0;
+    let skippedDuplicates = 0;
     const monthsTouched = new Set();
+
+    // Fingerprint so re-importing the same CSV does not create duplicates
+    function txnFingerprint(date, amount, description, type) {
+      const d = String(date || '').trim();
+      const a = Number(amount || 0).toFixed(2);
+      const desc = String(description || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const t = type || 'expense';
+      return `${d}|${a}|${desc}|${t}`;
+    }
+
+    const existingKeys = new Set();
+    Object.values(state.budgets || {}).forEach(b => {
+      (b.transactions || []).forEach(t => {
+        existingKeys.add(txnFingerprint(t.date, t.amount, t.description, t.type));
+      });
+    });
 
     // Helper: find or create a line item in a specific month's budget
     function findOrCreateLineItem(budget, catName) {
@@ -932,6 +983,13 @@ document.getElementById('csvFileInput').addEventListener('change', async (e) => 
 
       if (amount <= 0) continue;
 
+      const key = txnFingerprint(normalizedDate, amount, desc, type);
+      if (existingKeys.has(key)) {
+        skippedDuplicates++;
+        continue;
+      }
+      existingKeys.add(key); // also avoid duplicates within this CSV
+
       const lineItemId = findOrCreateLineItem(budget, catName);
 
       budget.transactions.push({
@@ -952,8 +1010,8 @@ document.getElementById('csvFileInput').addEventListener('change', async (e) => 
       recalcSpent(state.budgets[m]);
     });
 
-    // Switch view to the most recent month that received data
-    if (monthsTouched.size > 0) {
+    // Switch view only if new data was added
+    if (imported > 0 && monthsTouched.size > 0) {
       const sortedMonths = [...monthsTouched].sort().reverse();
       state.currentMonth = sortedMonths[0];
     }
@@ -961,9 +1019,11 @@ document.getElementById('csvFileInput').addEventListener('change', async (e) => 
     saveState();
     render();
 
-    let msg = `Imported ${imported} transactions across ${monthsTouched.size} month${monthsTouched.size === 1 ? '' : 's'}`;
-    if (skippedPayments > 0) msg += ` (skipped ${skippedPayments} payments)`;
-    toast(msg, 3500);
+    let msg = `Imported ${imported} new transaction${imported === 1 ? '' : 's'}`;
+    if (monthsTouched.size > 0) msg += ` across ${monthsTouched.size} month${monthsTouched.size === 1 ? '' : 's'}`;
+    if (skippedDuplicates > 0) msg += ` · skipped ${skippedDuplicates} duplicate${skippedDuplicates === 1 ? '' : 's'}`;
+    if (skippedPayments > 0) msg += ` · skipped ${skippedPayments} payment${skippedPayments === 1 ? '' : 's'}`;
+    toast(msg, 4000);
   } catch (err) {
     console.error(err);
     toast('Failed to parse CSV');
