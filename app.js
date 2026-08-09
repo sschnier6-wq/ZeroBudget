@@ -227,7 +227,6 @@ function render() {
   renderSummary();
   renderBudgetList();
   renderTransactions();
-  renderFunds();
   updateNav();
 }
 
@@ -530,22 +529,6 @@ function renderTransactions() {
   }).join('');
 }
 
-function renderFunds() {
-  const list = document.getElementById('fundsList');
-  if (!state.funds.length) {
-    list.innerHTML = `<p class="text-muted" style="text-align:center; padding:20px;">No sinking funds yet.<br>Create one for car repairs, vacation, etc.</p>`;
-    return;
-  }
-  list.innerHTML = state.funds.map(f => `
-    <div class="line-item">
-      <div class="line-item-top">
-        <span class="line-item-name">${escapeHtml(f.name)}</span>
-        <span class="font-bold">${formatMoney(f.balance)}</span>
-      </div>
-      <div class="text-muted" style="font-size:0.8rem;">Goal: ${formatMoney(f.goal || 0)}</div>
-    </div>
-  `).join('');
-}
 
 function findLineName(id, budget) {
   if (!id) return null;
@@ -832,17 +815,6 @@ function editIncome() {
 // ========== START BUDGET ==========
 document.getElementById('startBudgetBtn')?.addEventListener('click', () => {
   editIncome();
-});
-
-// ========== FUNDS ==========
-document.getElementById('addFundBtn').addEventListener('click', () => {
-  const name = prompt('Fund name (e.g. Car Repairs, Vacation)');
-  if (!name) return;
-  const goal = parseFloat(prompt('Goal amount (optional)', '0')) || 0;
-  state.funds.push({ id: uid(), name: name.trim(), balance: 0, goal });
-  saveState();
-  render();
-  toast('Fund created');
 });
 
 // ========== IMPORT CSV (Capital One) ==========

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zerobudget-v10';
+const CACHE_NAME = 'zerobudget-v11';
 const ASSETS = [
   './',
   './index.html',
