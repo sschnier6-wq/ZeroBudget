@@ -12,6 +12,12 @@ const DEFAULT_GROUPS = [
     { name: 'Investments', planned: 0 },
     { name: 'Retirement', planned: 0 }
   ]},
+  { name: 'Needs', items: [
+    { name: 'Other Needs', planned: 0 }
+  ]},
+  { name: 'Wants', items: [
+    { name: 'Other Wants', planned: 0 }
+  ]},
   { name: 'Giving', items: [
     { name: 'Charity/Tithe', planned: 0 }
   ]},
@@ -48,15 +54,17 @@ const DEFAULT_GROUPS = [
 // Display order priority (lower = higher on screen). Savings first.
 const GROUP_ORDER = {
   'Savings': 0,
-  'Giving': 1,
-  'Housing': 2,
-  'Transportation': 3,
-  'Food': 4,
-  'Personal': 5,
-  'Lifestyle': 6,
-  'Health': 7,
-  'Insurance': 8,
-  'Debt': 9,
+  'Needs': 1,
+  'Wants': 2,
+  'Giving': 3,
+  'Housing': 4,
+  'Transportation': 5,
+  'Food': 6,
+  'Personal': 7,
+  'Lifestyle': 8,
+  'Health': 9,
+  'Insurance': 10,
+  'Debt': 11,
   'Other': 99
 };
 
@@ -154,6 +162,20 @@ function loadState() {
         mortgage.name = 'Rent';
       }
     });
+  });
+
+  // Ensure Needs & Wants categories exist on every month
+  Object.values(state.budgets || {}).forEach(budget => {
+    if (!budget.groups) return;
+    const names = budget.groups.map(g => g.name);
+    if (!names.includes('Needs')) {
+      budget.groups.unshift({ name: 'Needs', items: [{ id: uid(), name: 'Other Needs', planned: 0, spent: 0 }] });
+    }
+    if (!names.includes('Wants')) {
+      const needsIdx = budget.groups.findIndex(g => g.name === 'Needs');
+      const insertAt = needsIdx >= 0 ? needsIdx + 1 : 0;
+      budget.groups.splice(insertAt, 0, { name: 'Wants', items: [{ id: uid(), name: 'Other Wants', planned: 0, spent: 0 }] });
+    }
   });
 
   // Ensure current month exists
