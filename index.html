@@ -32,7 +32,7 @@
           <circle cx="12" cy="12" r="9"/>
           <path d="M12 7v5l3 2"/>
         </svg>
-        ZeroBudget <span class="app-version">v0.13</span>
+        ZeroBudget <span class="app-version">v0.14</span>
       </h1>
       <div class="month-selector">
         <button id="prevMonth" aria-label="Previous month">‹</button>
@@ -175,7 +175,7 @@
         <input type="hidden" id="txnEditId" value="" />
         <div class="form-group">
           <label>Amount</label>
-          <input type="number" id="txnAmount" step="0.01" min="0" placeholder="0.00" required inputmode="decimal" />
+          <input type="text" id="txnAmount" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="0.00" required />
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -192,7 +192,7 @@
         </div>
         <div class="form-group">
           <label>Description / Merchant</label>
-          <input type="text" id="txnDesc" placeholder="e.g. Whole Foods" />
+          <input type="text" id="txnDesc" inputmode="text" enterkeyhint="next" autocomplete="off" placeholder="e.g. Whole Foods" />
         </div>
         <div class="form-group" id="txnCategoryGroup">
           <label>Budget category (assign every dollar)</label>
@@ -215,11 +215,11 @@
         <input type="hidden" id="editLineId" value="" />
         <div class="form-group">
           <label>Name</label>
-          <input type="text" id="editLineName" required />
+          <input type="text" id="editLineName" inputmode="text" enterkeyhint="next" autocomplete="off" required />
         </div>
         <div class="form-group">
           <label>Planned amount</label>
-          <input type="number" id="editLinePlanned" step="0.01" min="0" inputmode="decimal" required />
+          <input type="text" id="editLinePlanned" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="0.00" required />
         </div>
         <button type="submit" class="btn btn-primary btn-block mt-4">Save</button>
       </form>
@@ -249,7 +249,7 @@
       <form id="formLineItem">
         <div class="form-group">
           <label>Name</label>
-          <input type="text" id="lineName" placeholder="e.g. Groceries" required />
+          <input type="text" id="lineName" inputmode="text" enterkeyhint="next" autocomplete="off" placeholder="e.g. Groceries" required />
         </div>
         <div class="form-group">
           <label>Category Group</label>
@@ -269,7 +269,7 @@
         </div>
         <div class="form-group">
           <label>Planned Amount</label>
-          <input type="number" id="linePlanned" step="0.01" min="0" placeholder="0.00" inputmode="decimal" />
+          <input type="text" id="linePlanned" inputmode="decimal" enterkeyhint="done" autocomplete="off" placeholder="0.00" />
         </div>
         <button type="submit" class="btn btn-primary btn-block mt-4">Save</button>
       </form>
