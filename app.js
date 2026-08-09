@@ -45,6 +45,21 @@ const DEFAULT_GROUPS = [
   ]}
 ];
 
+// Display order priority (lower = higher on screen). Savings first.
+const GROUP_ORDER = {
+  'Savings': 0,
+  'Giving': 1,
+  'Housing': 2,
+  'Transportation': 3,
+  'Food': 4,
+  'Personal': 5,
+  'Lifestyle': 6,
+  'Health': 7,
+  'Insurance': 8,
+  'Debt': 9,
+  'Other': 99
+};
+
 // Capital One category mapping suggestions
 const CAP1_MAP = {
   'Merchandise': 'Lifestyle',
@@ -394,32 +409,36 @@ function renderTransactions() {
 
   const sortedCats = Object.entries(totals).sort((a, b) => b[1] - a[1]);
 
-  if (sortedCats.length === 0) {
-    chartCard.style.display = 'none';
-  } else {
-    chartCard.style.display = 'block';
-    chartEl.innerHTML = sortedCats.map(([name, amount]) => {
-      const pct = grandTotal > 0 ? (amount / grandTotal) * 100 : 0;
-      return `
-        <div class="cat-row">
-          <div class="cat-row-top">
-            <span class="cat-name">${escapeHtml(name)}</span>
-            <span class="cat-amount">${formatMoney(amount)}</span>
-          </div>
-          <div class="cat-bar-track">
-            <div class="cat-bar-fill" style="width:${pct}%"></div>
-          </div>
-          <div class="cat-pct">${pct.toFixed(0)}%</div>
-        </div>`;
-    }).join('');
+  if (chartCard && chartEl) {
+    if (sortedCats.length === 0) {
+      chartCard.style.display = 'none';
+    } else {
+      chartCard.style.display = 'block';
+      chartEl.innerHTML = sortedCats.map(([name, amount]) => {
+        const pct = grandTotal > 0 ? (amount / grandTotal) * 100 : 0;
+        return `
+          <div class="cat-row">
+            <div class="cat-row-top">
+              <span class="cat-name">${escapeHtml(name)}</span>
+              <span class="cat-amount">${formatMoney(amount)}</span>
+            </div>
+            <div class="cat-bar-track">
+              <div class="cat-bar-fill" style="width:${pct}%"></div>
+            </div>
+            <div class="cat-pct">${pct.toFixed(0)}%</div>
+          </div>`;
+      }).join('');
+    }
   }
+
+  if (!list) return;
 
   if (!budget.transactions.length) {
     list.innerHTML = '';
-    empty.style.display = 'block';
+    if (empty) empty.style.display = 'block';
     return;
   }
-  empty.style.display = 'none';
+  if (empty) empty.style.display = 'none';
 
   // Sort newest first
   const sorted = [...budget.transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
