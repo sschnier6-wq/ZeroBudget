@@ -608,3 +608,43 @@ body {
   margin-left: 6px;
   vertical-align: middle;
 }
+
+/* Expandable categories */
+.category-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+.category-toggle .chevron {
+  display: inline-block;
+  width: 1em;
+  color: var(--primary);
+}
+.txn-breakdown {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+}
+.txn-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.txn-row:active {
+  background: #f1f5f9;
+}
+.txn-desc {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.txn-date {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.txn-amt {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}

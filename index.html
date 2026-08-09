@@ -85,6 +85,7 @@
 
       <!-- TRANSACTIONS SCREEN -->
       <div id="screen-transactions" class="screen">
+        <button class="btn btn-primary btn-block mb-2" id="addExpenseBtn" style="margin-bottom:12px;">+ Add Expense</button>
         <div class="card" id="categoryChartCard">
           <div class="card-title">Spending by Category</div>
           <div id="categoryChart"></div>
@@ -94,6 +95,7 @@
           <div id="transactionsList"></div>
           <div class="empty-state" id="emptyTransactions" style="display: none;">
             <p>No transactions yet.</p>
+            <button class="btn btn-primary mt-4" id="addExpenseEmptyBtn">+ Add Expense</button>
           </div>
         </div>
       </div>
@@ -177,10 +179,11 @@
   <div class="modal-overlay" id="modalTransaction">
     <div class="modal">
       <div class="modal-header">
-        <h2 id="modalTxnTitle">Add Transaction</h2>
+        <h2 id="modalTxnTitle">Add Expense</h2>
         <button class="modal-close" data-close>×</button>
       </div>
       <form id="formTransaction">
+        <input type="hidden" id="txnEditId" value="" />
         <div class="form-group">
           <label>Amount</label>
           <input type="number" id="txnAmount" step="0.01" min="0" placeholder="0.00" required inputmode="decimal" />
@@ -203,10 +206,33 @@
           <input type="text" id="txnDesc" placeholder="e.g. Whole Foods" />
         </div>
         <div class="form-group" id="txnCategoryGroup">
-          <label>Category / Line Item</label>
+          <label>Budget category (assign every dollar)</label>
           <select id="txnCategory" required></select>
         </div>
-        <button type="submit" class="btn btn-primary btn-block mt-4">Save Transaction</button>
+        <button type="submit" class="btn btn-primary btn-block mt-4" id="txnSaveBtn">Save Expense</button>
+        <button type="button" class="btn btn-danger btn-block mt-2" id="txnDeleteBtn" style="display:none;">Delete</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Budget Line Item (planned amount) -->
+  <div class="modal-overlay" id="modalEditLine">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalEditLineTitle">Edit Line Item</h2>
+        <button class="modal-close" data-close>×</button>
+      </div>
+      <form id="formEditLine">
+        <input type="hidden" id="editLineId" value="" />
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="editLineName" required />
+        </div>
+        <div class="form-group">
+          <label>Planned amount</label>
+          <input type="number" id="editLinePlanned" step="0.01" min="0" inputmode="decimal" required />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block mt-4">Save</button>
       </form>
     </div>
   </div>

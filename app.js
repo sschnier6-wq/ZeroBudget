@@ -340,46 +340,92 @@ function renderBudgetList() {
     return ao - bo;
   });
 
+  if (!window._expandedGroups) window._expandedGroups = new Set();
+
   orderedGroups.forEach(group => {
     if (group.items.length === 0) return;
+
+    const groupSpent = group.items.reduce((s, i) => s + (Number(i.spent) || 0), 0);
+    const groupPlanned = group.items.reduce((s, i) => s + (Number(i.planned) || 0), 0);
+    const expanded = window._expandedGroups.has(group.name);
+    const chevron = expanded ? '▾' : '▸';
+
     html += `<div class="category-group">
-      <div class="category-header">
-        <span>${escapeHtml(group.name)}</span>
-        <button class="btn btn-sm btn-ghost" onclick="addLineItem('${group.name}')">+</button>
+      <div class="category-header category-toggle" onclick="toggleCategory('${escapeHtml(group.name).replace(/'/g, "\\'")}')">
+        <span><span class="chevron">${chevron}</span> ${escapeHtml(group.name)}</span>
+        <span class="text-muted" style="font-size:0.8rem;font-weight:500;">
+          ${formatMoney(groupSpent)} / ${formatMoney(groupPlanned)}
+          <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();addLineItem('${escapeHtml(group.name).replace(/'/g, "\\'")}')">+</button>
+        </span>
       </div>`;
 
-    group.items.forEach(item => {
-      const remaining = (item.planned || 0) - (item.spent || 0);
-      const pct = item.planned > 0 ? Math.min(100, (item.spent / item.planned) * 100) : 0;
-      const remClass = remaining > 0.01 ? 'positive' : remaining < -0.01 ? 'negative' : 'zero';
-      const badge = item.needsReview ? '<span class="badge-update">Update</span>' : '';
+    if (expanded) {
+      group.items.forEach(item => {
+        const remaining = (item.planned || 0) - (item.spent || 0);
+        const pct = item.planned > 0 ? Math.min(100, (item.spent / item.planned) * 100) : 0;
+        const remClass = remaining > 0.01 ? 'positive' : remaining < -0.01 ? 'negative' : 'zero';
+        const badge = item.needsReview ? '<span class="badge-update">Update</span>' : '';
 
-      html += `
-        <div class="line-item" onclick="editLineItem('${item.id}')">
-          <div class="line-item-top">
-            <span class="line-item-name">${escapeHtml(item.name)} ${badge}</span>
-            <div class="line-item-amounts">
-              <span class="amount-spent">${formatMoney(item.spent || 0)}</span>
-              <span class="text-muted">/</span>
-              <span class="amount-planned">${formatMoney(item.planned || 0)}</span>
+        // Transactions assigned to this line item
+        const itemTxns = budget.transactions
+          .filter(t => t.type === 'expense' && t.lineItemId === item.id)
+          .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        html += `
+          <div class="line-item">
+            <div class="line-item-top" onclick="editLineItem('${item.id}')">
+              <span class="line-item-name">${escapeHtml(item.name)} ${badge}</span>
+              <div class="line-item-amounts">
+                <span class="amount-spent">${formatMoney(item.spent || 0)}</span>
+                <span class="text-muted">/</span>
+                <span class="amount-planned">${formatMoney(item.planned || 0)}</span>
+              </div>
             </div>
-          </div>
-          <div class="progress-bar">
-            <div class="progress-fill ${pct > 100 ? 'over' : ''}" style="width: ${Math.min(100, pct)}%"></div>
-          </div>
-          <div style="font-size:0.8rem; margin-top:2px;" class="amount-remaining ${remClass}">
-            ${remaining >= 0 ? formatMoney(remaining) + ' left' : formatMoney(Math.abs(remaining)) + ' over'}
-          </div>
-        </div>`;
-    });
+            <div class="progress-bar">
+              <div class="progress-fill ${pct > 100 ? 'over' : ''}" style="width: ${Math.min(100, pct)}%"></div>
+            </div>
+            <div style="font-size:0.8rem; margin-top:2px;" class="amount-remaining ${remClass}">
+              ${remaining >= 0 ? formatMoney(remaining) + ' left' : formatMoney(Math.abs(remaining)) + ' over'}
+              <span class="text-muted"> · tap to edit planned</span>
+            </div>`;
+
+        if (itemTxns.length) {
+          html += `<div class="txn-breakdown">`;
+          itemTxns.forEach(t => {
+            html += `
+              <div class="txn-row" onclick="event.stopPropagation();editTransaction('${t.id}')">
+                <div>
+                  <div class="txn-desc">${escapeHtml(t.description || 'Expense')}</div>
+                  <div class="txn-date">${t.date}</div>
+                </div>
+                <div class="txn-amt">-${formatMoney(t.amount)}</div>
+              </div>`;
+          });
+          html += `</div>`;
+        } else if ((item.spent || 0) === 0) {
+          html += `<div class="txn-breakdown text-muted" style="font-size:0.8rem;padding:6px 0;">No expenses assigned yet</div>`;
+        }
+
+        html += `</div>`;
+      });
+    }
+
     html += `</div>`;
   });
 
   // Quick add button
   html += `<button class="btn btn-secondary btn-block mt-4" onclick="addLineItem()">+ Add Line Item</button>`;
+  html += `<p class="text-muted" style="font-size:0.8rem;text-align:center;margin-top:8px;">Tap a category to expand and see spending details</p>`;
 
   container.innerHTML = html;
 }
+
+window.toggleCategory = function(name) {
+  if (!window._expandedGroups) window._expandedGroups = new Set();
+  if (window._expandedGroups.has(name)) window._expandedGroups.delete(name);
+  else window._expandedGroups.add(name);
+  renderBudgetList();
+};
 
 window.confirmAllReviews = function() {
   const budget = getCurrentBudget();
@@ -445,12 +491,13 @@ function renderTransactions() {
 
   list.innerHTML = sorted.map(t => {
     const isIncome = t.type === 'income';
-    const lineName = findLineName(t.lineItemId, budget) || (isIncome ? 'Income' : 'Uncategorized');
+    const lineName = findLineName(t.lineItemId, budget) || t.originalCategory || (isIncome ? 'Income' : 'Uncategorized');
+    const unassigned = !isIncome && !t.lineItemId;
     return `
-      <div class="line-item" style="margin-bottom:8px;">
+      <div class="line-item" style="margin-bottom:8px;${unassigned ? 'border:1px solid #fbbf24;' : ''}" onclick="editTransaction('${t.id}')">
         <div class="line-item-top">
           <div>
-            <div class="line-item-name">${escapeHtml(t.description || lineName)}</div>
+            <div class="line-item-name">${escapeHtml(t.description || lineName)}${unassigned ? ' <span class="badge-update">Assign</span>' : ''}</div>
             <div class="text-muted" style="font-size:0.8rem;">${t.date} · ${escapeHtml(lineName)}</div>
           </div>
           <div style="font-weight:600; color:${isIncome ? 'var(--success)' : 'var(--text)'}">
@@ -555,31 +602,63 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 });
 
 // ========== TRANSACTIONS ==========
-document.getElementById('fabAdd').addEventListener('click', () => {
-  openAddTransaction();
-});
-
-function openAddTransaction() {
+function populateCategoryDropdown(selectedId) {
   const budget = getCurrentBudget();
   const select = document.getElementById('txnCategory');
-  select.innerHTML = '<option value="">Select...</option>';
+  select.innerHTML = '<option value="">Select budget category…</option>';
 
-  budget.groups.forEach(g => {
+  const ordered = [...budget.groups].sort((a, b) =>
+    (GROUP_ORDER[a.name] ?? 50) - (GROUP_ORDER[b.name] ?? 50)
+  );
+
+  ordered.forEach(g => {
+    if (!g.items.length) return;
+    const og = document.createElement('optgroup');
+    og.label = g.name;
     g.items.forEach(item => {
       const opt = document.createElement('option');
       opt.value = item.id;
-      opt.textContent = `${g.name} › ${item.name}`;
-      select.appendChild(opt);
+      opt.textContent = item.name;
+      if (selectedId && selectedId === item.id) opt.selected = true;
+      og.appendChild(opt);
     });
+    select.appendChild(og);
   });
+}
 
-  document.getElementById('txnAmount').value = '';
-  document.getElementById('txnDesc').value = '';
-  document.getElementById('txnDate').value = new Date().toISOString().slice(0, 10);
-  document.getElementById('txnType').value = 'expense';
-  document.getElementById('modalTxnTitle').textContent = 'Add Transaction';
+function openAddTransaction(prefill) {
+  document.getElementById('txnEditId').value = '';
+  document.getElementById('txnAmount').value = prefill?.amount ?? '';
+  document.getElementById('txnDesc').value = prefill?.description ?? '';
+  document.getElementById('txnDate').value = prefill?.date || new Date().toISOString().slice(0, 10);
+  document.getElementById('txnType').value = prefill?.type || 'expense';
+  document.getElementById('modalTxnTitle').textContent = 'Add Expense';
+  document.getElementById('txnSaveBtn').textContent = 'Save Expense';
+  document.getElementById('txnDeleteBtn').style.display = 'none';
+  populateCategoryDropdown(prefill?.lineItemId || null);
   openModal('modalTransaction');
 }
+
+function editTransaction(id) {
+  const budget = getCurrentBudget();
+  const t = budget.transactions.find(x => x.id === id);
+  if (!t) return toast('Transaction not found');
+
+  document.getElementById('txnEditId').value = t.id;
+  document.getElementById('txnAmount').value = t.amount;
+  document.getElementById('txnDesc').value = t.description || '';
+  document.getElementById('txnDate').value = t.date;
+  document.getElementById('txnType').value = t.type || 'expense';
+  document.getElementById('modalTxnTitle').textContent = 'Edit Transaction';
+  document.getElementById('txnSaveBtn').textContent = 'Save Changes';
+  document.getElementById('txnDeleteBtn').style.display = 'block';
+  populateCategoryDropdown(t.lineItemId);
+  openModal('modalTransaction');
+}
+
+document.getElementById('fabAdd').addEventListener('click', () => openAddTransaction());
+document.getElementById('addExpenseBtn')?.addEventListener('click', () => openAddTransaction());
+document.getElementById('addExpenseEmptyBtn')?.addEventListener('click', () => openAddTransaction());
 
 document.getElementById('formTransaction').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -587,22 +666,50 @@ document.getElementById('formTransaction').addEventListener('submit', (e) => {
   const amount = parseFloat(document.getElementById('txnAmount').value);
   if (isNaN(amount) || amount <= 0) return toast('Enter a valid amount');
 
-  const txn = {
-    id: uid(),
+  const type = document.getElementById('txnType').value;
+  const lineItemId = document.getElementById('txnCategory').value || null;
+  if (type === 'expense' && !lineItemId) {
+    return toast('Pick a budget category so every dollar is assigned');
+  }
+
+  const editId = document.getElementById('txnEditId').value;
+  const payload = {
     amount,
     date: document.getElementById('txnDate').value,
     description: document.getElementById('txnDesc').value.trim(),
-    type: document.getElementById('txnType').value,
-    lineItemId: document.getElementById('txnCategory').value || null
+    type,
+    lineItemId
   };
 
-  budget.transactions.push(txn);
+  if (editId) {
+    const existing = budget.transactions.find(t => t.id === editId);
+    if (existing) Object.assign(existing, payload);
+    toast('Transaction updated');
+  } else {
+    budget.transactions.push({ id: uid(), ...payload });
+    toast('Expense added');
+  }
+
   recalcSpent(budget);
   saveState();
   closeModal('modalTransaction');
   render();
-  toast('Transaction added');
 });
+
+document.getElementById('txnDeleteBtn')?.addEventListener('click', () => {
+  const editId = document.getElementById('txnEditId').value;
+  if (!editId) return;
+  if (!confirm('Delete this transaction?')) return;
+  const budget = getCurrentBudget();
+  budget.transactions = budget.transactions.filter(t => t.id !== editId);
+  recalcSpent(budget);
+  saveState();
+  closeModal('modalTransaction');
+  render();
+  toast('Transaction deleted');
+});
+
+window.editTransaction = editTransaction;
 
 // ========== LINE ITEMS ==========
 function addLineItem(groupName = 'Other') {
@@ -642,7 +749,6 @@ document.getElementById('formLineItem').addEventListener('submit', (e) => {
 });
 
 function editLineItem(id) {
-  // Simple: for now just allow quick planned amount edit via prompt (can improve later)
   const budget = getCurrentBudget();
   let item = null;
   for (const g of budget.groups) {
@@ -651,16 +757,36 @@ function editLineItem(id) {
   }
   if (!item) return;
 
-  const newPlanned = prompt(`Planned amount for "${item.name}"`, item.planned);
-  if (newPlanned === null) return;
-  const val = parseFloat(newPlanned);
-  if (!isNaN(val) && val >= 0) {
-    item.planned = val;
-    item.needsReview = false; // confirmed by editing
-    saveState();
-    render();
-  }
+  document.getElementById('editLineId').value = item.id;
+  document.getElementById('editLineName').value = item.name;
+  document.getElementById('editLinePlanned').value = item.planned || 0;
+  document.getElementById('modalEditLineTitle').textContent = `Edit ${item.name}`;
+  openModal('modalEditLine');
 }
+
+document.getElementById('formEditLine')?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const budget = getCurrentBudget();
+  const id = document.getElementById('editLineId').value;
+  let item = null;
+  for (const g of budget.groups) {
+    item = g.items.find(i => i.id === id);
+    if (item) break;
+  }
+  if (!item) return;
+
+  const name = document.getElementById('editLineName').value.trim();
+  const planned = parseFloat(document.getElementById('editLinePlanned').value);
+  if (!name || isNaN(planned) || planned < 0) return toast('Enter a valid name and amount');
+
+  item.name = name;
+  item.planned = planned;
+  item.needsReview = false;
+  saveState();
+  closeModal('modalEditLine');
+  render();
+  toast('Line item updated');
+});
 
 function editIncome() {
   const budget = getCurrentBudget();
