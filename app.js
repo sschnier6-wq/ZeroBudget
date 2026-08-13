@@ -1247,8 +1247,59 @@ if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.
 }
 
 // ========== INIT ==========
+
+// ========== UNIQUE USER COUNTER ==========
+// Counts each browser once (localStorage flag) via a public counter API.
+const USER_COUNT_NAMESPACE = 'zerobudget-schnier';
+const USER_COUNT_KEY = 'unique-users';
+const USER_COUNTED_FLAG = 'zb_unique_counted_v1';
+
+async function trackAndShowUniqueUsers() {
+  const el = document.getElementById('userCount');
+  if (!el) return;
+
+  const endpoints = {
+    hit: `https://abacus.jasoncameron.dev/hit/${USER_COUNT_NAMESPACE}/${USER_COUNT_KEY}`,
+    get: `https://abacus.jasoncameron.dev/get/${USER_COUNT_NAMESPACE}/${USER_COUNT_KEY}`
+  };
+
+  try {
+    const already = localStorage.getItem(USER_COUNTED_FLAG) === '1';
+    let value = null;
+
+    if (!already) {
+      const res = await fetch(endpoints.hit, { method: 'GET', cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        value = data.value;
+        localStorage.setItem(USER_COUNTED_FLAG, '1');
+      }
+    }
+
+    if (value == null) {
+      const res = await fetch(endpoints.get, { method: 'GET', cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        value = data.value;
+      }
+    }
+
+    if (value != null && !Number.isNaN(Number(value))) {
+      el.textContent = `· ${Number(value).toLocaleString()} user${Number(value) === 1 ? '' : 's'}`;
+    } else {
+      el.textContent = '';
+    }
+  } catch (e) {
+    // Offline or API blocked — hide quietly
+    el.textContent = '';
+    console.warn('User counter unavailable', e);
+  }
+}
+
+
 loadState();
 render();
+trackAndShowUniqueUsers();
 
 // Expose some functions for inline onclick
 window.addLineItem = addLineItem;

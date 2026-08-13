@@ -657,3 +657,13 @@ body {
   vertical-align: middle;
   opacity: 0.8;
 }
+
+
+.user-count {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-left: 4px;
+  vertical-align: middle;
+  opacity: 0.85;
+}
